@@ -1,0 +1,271 @@
+# EDC Relo Kit YAML Workflow
+# For n8n import or MCP orchestration
+
+workflow:
+  name: "EDC Relo Kit Generator"
+  version: "1.0"
+  description: "Generate complete relocator kit: blog, schema, social, metrics"
+  
+settings:
+  geo: "Sarasota"
+  target_industries:
+    - "VR/Gaming Studios"
+    - "Tech Startups"
+    - "Software Development"
+    - "Creative Tech"
+  
+  edc_stats:
+    it_growth: "175%"
+    tech_firms: 830
+    avg_wage: 130000
+    annual_relos: 50
+    
+  brand_quotes:
+    - "play here, build here"
+    - "Innovation meets lifestyle"
+    - "Where talent thrives"
+
+# Agent Pipeline
+agents:
+  
+  # 1. Keyword Research Agent
+  keyword_agent:
+    name: "SEMrush Keyword Pull"
+    trigger: "manual_input"
+    input:
+      query: "${target_industry} relocations ${geo}"
+      min_volume: 100
+      max_difficulty: 60
+    actions:
+      - fetch_opportunities
+      - filter_by_intent: "commercial"
+    output: "keywords.json"
+    
+  # 2. Content Generation Agent  
+  content_agent:
+    name: "AI Blog Generator"
+    trigger: "keyword_agent.complete"
+    input:
+      model: "gpt-4o-mini"
+      word_count: 1200
+      tone: "professional, inspiring"
+      prompt_template: |
+        Generate comprehensive EDC blog post:
+        
+        Topic: ${target_industry} relocations to ${geo}
+        Keywords: ${keywords.primary}
+        Quote to include: "${brand_quotes[0]}"
+        
+        Required sections:
+        1. Hook with quote
+        2. ${geo} tech ecosystem overview
+        3. Statistics: ${edc_stats}
+        4. Why relocate (3-5 reasons)
+        5. EDC support services
+        6. Call to action
+        
+        SEO requirements:
+        - H2/H3 headers
+        - Keyword density: 1-2%
+        - Internal link opportunities
+        - FAQ schema ready
+        
+    output: "blog.md"
+    
+  # 3. Schema Generation Agent
+  schema_agent:
+    name: "JSON-LD Builder"
+    trigger: "content_agent.complete"
+    input:
+      schema_type: "LocalBusiness"
+      business_name: "EDC Sarasota Tech Hub"
+      description: "${target_industry} comprehensive guide"
+      location:
+        city: "${geo}"
+        state: "FL"
+        coords: [27.3364, -82.5307]
+    actions:
+      - build_localbusiness_schema
+      - add_faq_from_blog
+      - validate_json_ld
+    output: "schema.json"
+    
+  # 4. Social Media Agent
+  social_agent:
+    name: "Multi-Platform Kit Generator"
+    trigger: "content_agent.complete"
+    platforms:
+      gbp:
+        char_limit: 1500
+        cta: "Learn More"
+        template: "${geo}'s ${target_industry}: '${brand_quotes[0]}' – ${edc_stats.it_growth} IT growth, ${edc_stats.tech_firms} firms. Relocate now!"
+        
+      facebook:
+        char_limit: 5000
+        format: "narrative"
+        include_stats: true
+        hashtags: ["#SarasotaTech", "#EDCInnovation", "#TechRelocations"]
+        
+      instagram:
+        char_limit: 2200
+        format: "bullets"
+        hashtag_count: 8
+        emoji_style: "minimal"
+        
+      linkedin:
+        char_limit: 3000
+        format: "professional"
+        include_stats: true
+        tone: "thought_leadership"
+        
+    output: "social_kit.json"
+    
+  # 5. Visual Agent (Future: DALL-E integration)
+  visual_agent:
+    name: "Header Image Generator"
+    trigger: "content_agent.complete"
+    status: "placeholder"
+    input:
+      prompt: "${geo} tech hub, modern office, Gulf Coast, professional"
+      style: "photorealistic"
+      dimensions: "1200x630"
+    output: "header.png"
+    
+  # 6. Publishing Agent
+  publish_agent:
+    name: "WordPress Publisher"
+    trigger: "manual_approval"
+    input:
+      wp_endpoint: "${WP_BASE_URL}/wp-json/wp/v2/posts"
+      post_data:
+        title: "${target_industry} Relocations: ${geo} Guide"
+        content: "${blog.md}"
+        status: "draft"  # Change to "publish" when ready
+        categories: [5]  # EDC Relocations category
+        tags: ["${target_industry}", "${geo}", "tech relocations"]
+      schema_inject: true
+    output: "post_id.json"
+    
+  # 7. GBP Publishing Agent  
+  gbp_agent:
+    name: "Google Business Profile Publisher"
+    trigger: "manual_approval"
+    input:
+      location_id: "${GBP_LOCATION_ID}"
+      post_content: "${social_kit.gbp.content}"
+      cta_type: "LEARN_MORE"
+      cta_url: "${publish_agent.post_url}"
+    output: "gbp_post_id.json"
+    
+  # 8. Analytics Agent
+  analytics_agent:
+    name: "Performance Tracker"
+    trigger: "publish_agent.complete"
+    schedule: "daily"
+    metrics:
+      - keyword_rankings
+      - organic_traffic
+      - gbp_views
+      - social_engagement
+    sources:
+      - ga4: "${GA4_PROPERTY_ID}"
+      - semrush: "${SEMRUSH_API_KEY}"
+      - gbp_insights: "${GBP_LOCATION_ID}"
+    output: "performance.json"
+    
+  # 9. Revenue Tracking Agent
+  revenue_agent:
+    name: "Revenue Forecaster"
+    trigger: "analytics_agent.complete"
+    input:
+      kits_generated: "${count(workflows.completed)}"
+      kit_price: 750
+      edc_subscription: 2000
+      conversion_rate: 0.15  # 15% of leads convert
+    calculations:
+      monthly_kits: "${kits_generated}"
+      kit_revenue: "${monthly_kits * kit_price}"
+      total_monthly: "${edc_subscription + kit_revenue}"
+      annual_projection: "${total_monthly * 12}"
+    output: "revenue_forecast.json"
+
+# Error Handling
+on_error:
+  notification:
+    email: "michael@edc.com"
+    subject: "MCP Workflow Failed: ${workflow.name}"
+    body: "Agent ${failed_agent} error: ${error_message}"
+  fallback:
+    action: "pause_workflow"
+    retry_count: 3
+    retry_delay: "5m"
+
+# Success Actions  
+on_success:
+  notifications:
+    - type: "slack"
+      channel: "#mcp-alerts"
+      message: "✅ ${target_industry} kit generated: ${outputs.blog.word_count} words, ${outputs.social_kit.platforms} posts"
+    - type: "dashboard_update"
+      metric: "kits_generated"
+      increment: 1
+      
+  next_actions:
+    - add_to_dashboard
+    - queue_for_review
+    - calculate_revenue_impact
+
+# Dashboard Integration
+dashboard:
+  client_card:
+    logo: "edc_logo.png"
+    title: "EDC ${geo}"
+    stats:
+      kits_generated: "${count(workflows.completed)}"
+      relos_tracked: "${edc_stats.annual_relos}"
+      jobs_created: 200
+      revenue_impact: "${revenue_agent.total_monthly}"
+  visualizations:
+    - type: "line_chart"
+      title: "IT Growth Trend"
+      data: "${edc_stats.it_growth}"
+    - type: "bar_chart"
+      title: "Monthly Kit Production"
+      data: "${analytics_agent.monthly_kits}"
+
+# Integration Endpoints
+integrations:
+  mcp_api: "https://mcp-framework.onrender.com"
+  endpoints:
+    generate: "/generate_relo_kit"
+    metrics: "/edc_metrics"
+    health: "/health"
+    
+  authentication:
+    type: "api_key"
+    header: "X-API-Key"
+    value: "${MCP_API_KEY}"
+
+# Usage Example
+example_trigger:
+  http_post:
+    url: "${integrations.mcp_api}/generate_relo_kit"
+    body:
+      keyword: "VR Relos Sarasota"
+      quote: "play here, build here"
+      geo: "Sarasota"
+  expected_output:
+    blog: "1200 word article"
+    schema: "JSON-LD LocalBusiness"
+    social_kit: "4 platform posts"
+    report: "EDC metrics summary"
+    
+# Notes for Day 2+
+todo:
+  - Integrate real OpenAI API for content generation
+  - Connect SEMrush API for keyword research
+  - Add DALL-E for header images
+  - Build Learning Core (CTR feedback loop)
+  - Create Next.js dashboard with client cards
+  - Add Stripe integration for upsell button
+  - Set up n8n workflows from this YAML

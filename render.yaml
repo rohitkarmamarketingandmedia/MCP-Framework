@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: mcp-framework
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: WP_BASE_URL
+        value: https://demo.wp.com
+      - key: SEMRUSH_API_KEY
+        sync: false
+      - key: GBP_LOCATION_ID
+        value: "123"
+      - key: GA4_PROPERTY_ID
+        sync: false
